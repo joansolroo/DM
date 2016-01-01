@@ -11,15 +11,16 @@ public class BoidNode{
 	public Vector3 velocity;
 	public Vector3 steering;
 
-	public BoidNode(Node _node){
+	// This is a waypoint
+	public BoidNode(Node _node, float _penalty){
 		node = _node;
-		
-		penalty = 0;
+		penalty = _penalty;
 		hardRadius = 0;
-		softRadius = 0;
+		softRadius = 0.5f;
 		visibilityRadius = float.MaxValue;
 	}
 
+	//This is a solid object
 	public BoidNode(Node _node, float _radius, float _penalty){
 		node = _node;
 	
@@ -37,7 +38,7 @@ public class Node {
 	public int gridY;
 
 	public int movementPenalty;
-	public static int MaxMovementPenalty = 20;
+	public static int MaxMovementPenalty = 5;
 
 	public PathfindingNode pathfindingNode;
 	public BoidNode boidNode;
@@ -53,9 +54,10 @@ public class Node {
 
 		pathfindingNode = new PathfindingNode (this);
 
+		float normalizedPenalty = ((float)movementPenalty) / MaxMovementPenalty;
 		if (walkable)
-			boidNode = new BoidNode (this);
+			boidNode = new BoidNode (this, normalizedPenalty);
 		else
-			boidNode = new BoidNode (this, 0.5f, movementPenalty/MaxMovementPenalty);
+			boidNode = new BoidNode (this, 0.5f, normalizedPenalty);
 	}
 }

@@ -69,14 +69,21 @@ public class Grid : MonoBehaviour {
 		}
 	}
 
-	public List<Node> GetNeighbours(Node node, bool includeDiagonals = false) {
+	public List<Node> GetNeighbours(Node node, bool radialNeigbourhood = false, float radius = 1) {
 		List<Node> neighbours = new List<Node>();
-
-		for (int x = -1; x <= 1; x++) {
-			for (int y = -1; y <= 1; y++) {
+		int radiusInt = -(int)Mathf.Floor (-radius);
+		for (int x = -radiusInt; x <= radiusInt; x++) {
+			for (int y = -radiusInt; y <= radiusInt; y++) {
 				int xy = Mathf.Abs( Mathf.Abs(x)+ Mathf.Abs(y));
-				if (x == 0 && y == 0 || (!includeDiagonals && xy == 2)) 
+
+				if((!radialNeigbourhood && new Vector2(x,y).magnitude > radius))
 					continue;
+
+				bool cross = false;
+				if (x == 0 && y == 0) 
+					continue;
+				else if (x == 0 || y == 0)
+					cross = true;
 
 				int checkX = node.gridX + x;
 				int checkY = node.gridY + y;

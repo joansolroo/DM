@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class Terrain : MonoBehaviour {
+public class Terrain : Boid {
 	
 	// Use this for initialization
 	void Start () {
@@ -11,5 +11,9 @@ public class Terrain : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
 	
+	}
+
+	protected override void Initialize(){
+		boid = new BoidNode (transform.position, radius);
 	}
 }

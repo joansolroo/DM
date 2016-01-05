@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 public class Grid : MonoBehaviour {
 
+
 	public static Grid instance;
 
 	public bool displayGridGizmos;
@@ -12,7 +13,8 @@ public class Grid : MonoBehaviour {
 	public float nodeRadius;
 	float nodeDiameter;
 	int gridSizeX, gridSizeY;
-	Node[,] grid;
+	Node[,] terrain;
+	HashSet<BoidNode>[,] units;
 
 	float ObjectSkinThickness = 0.001f ;
 
@@ -46,30 +48,39 @@ public class Grid : MonoBehaviour {
 			return gridSizeX * gridSizeY;
 		}
 	}
-
-	void CreateGrid() {
-		grid = new Node[gridSizeX,gridSizeY];
+	void scanWorld(){
 		Vector3 worldBottomLeft = transform.position - Vector3.right * gridWorldSize.x/2 - Vector3.forward * gridWorldSize.y/2;
 		for (int x = 0; x < gridSizeX; x ++) {
 			for (int y = 0; y < gridSizeY; y ++) {
 				Vector3 worldPoint = worldBottomLeft + Vector3.right * (x * nodeDiameter + nodeRadius) + Vector3.forward * (y * nodeDiameter + nodeRadius);
-				bool walkable = !(Physics.CheckSphere(worldPoint,nodeRadius-ObjectSkinThickness,unwalkableMask));
-
+				bool walkable = !(Physics.CheckSphere (worldPoint, nodeRadius - ObjectSkinThickness, unwalkableMask));
+				
 				int movementPenalty = 0;
-				if(walkable){
+				if (walkable) {
 					int factor = 50;
-					Ray ray = new Ray(worldPoint+ Vector3.up * factor, Vector3.down);
+					Ray ray = new Ray (worldPoint + Vector3.up * factor, Vector3.down);
 					RaycastHit hit;
-					if(Physics.Raycast(ray, out hit, factor * 2, walkableMask)){
-						walkableRegionsDictionary.TryGetValue(hit.collider.gameObject.layer, out movementPenalty);
+					if (Physics.Raycast (ray, out hit, factor * 2, walkableMask)) {
+						walkableRegionsDictionary.TryGetValue (hit.collider.gameObject.layer, out movementPenalty);
 					}
 				}
-				grid[x,y] = new Node(walkable,worldPoint, x, y, movementPenalty);
+				terrain [x, y] = new Node (walkable, worldPoint, x, y, movementPenalty);
+			}
+		}
+	}
+	void CreateGrid() {
+		terrain = new Node[gridSizeX,gridSizeY];
+		scanWorld ();
+		units = new  HashSet<BoidNode>[gridSizeX,gridSizeY];
+		Vector3 worldBottomLeft = transform.position - Vector3.right * gridWorldSize.x/2 - Vector3.forward * gridWorldSize.y/2;
+		for (int x = 0; x < gridSizeX; x ++) {
+			for (int y = 0; y < gridSizeY; y ++) {
+				units[x,y] = new HashSet<BoidNode>(new BoidNode.Comparer());
 			}
 		}
 	}
 
-	public List<Node> GetNeighbours(Node node, bool radialNeigbourhood = false, float radius = 1) {
+	public Node[] GetTerrainNeighbours(Node node, bool radialNeigbourhood = false, float radius = 1) {
 		List<Node> neighbours = new List<Node>();
 		int radiusInt = -(int)Mathf.Floor (-radius);
 		for (int x = -radiusInt; x <= radiusInt; x++) {
@@ -89,14 +100,60 @@ public class Grid : MonoBehaviour {
 				int checkY = node.gridY + y;
 
 				if (checkX >= 0 && checkX < gridSizeX && checkY >= 0 && checkY < gridSizeY) {
-					neighbours.Add(grid[checkX,checkY]);
+					neighbours.Add(terrain[checkX,checkY]);
 				}
 			}
 		}
 
-		return neighbours;
+		return neighbours.ToArray();
 	}
-	
+	public void RegisterUnit (BoidNode boid)
+	{
+		Node node = NodeFromWorldPoint(boid.position);
+		units[node.gridX,node.gridY].Add(boid);
+		//print ("Added Boid  at ["+ node.gridX +"," + node.gridY+"] total:"+units[node.gridX,node.gridY].Count);
+
+	}
+	public void RemoveUnit (BoidNode boid)
+	{
+		Node node = NodeFromWorldPoint(boid.position);
+		units[node.gridX,node.gridY].Remove(boid);
+		//print ("Removed Boid  at ["+ node.gridX +"," + node.gridY+"] total:"+units[node.gridX,node.gridY].Count);
+	}
+
+	public BoidNode[] GetUnitNeighbours(BoidNode boid, bool radialNeighbourhood = false, float radius = 1) {
+		List<BoidNode> neighbours = new List<BoidNode>();
+		int radiusInt = -(int)Mathf.Floor (-radius);
+		for (int x = -radiusInt; x <= radiusInt; x++) {
+			for (int y = -radiusInt; y <= radiusInt; y++) {
+				int xy = Mathf.Abs( Mathf.Abs(x)+ Mathf.Abs(y));
+				
+				if((!radialNeighbourhood && new Vector2(x,y).magnitude > radius))
+					continue;
+				
+				bool cross = false;
+				if (x == 0 && y == 0) 
+					continue;
+				else if (x == 0 || y == 0)
+					cross = true;
+				Node node = NodeFromWorldPoint(boid.position);
+				int checkX = node.gridX + x;
+				int checkY = node.gridY + y;
+				//print ("Searching Boids at ["+ checkX +"," + checkY+"]");
+				if (checkX >= 0 && checkX < gridSizeX && checkY >= 0 && checkY < gridSizeY) {
+					HashSet<BoidNode> neighboursXY = units[checkX,checkY];
+					foreach(BoidNode neighbour in neighboursXY)
+					{
+						//print ("Close Boid found: at ["+ checkX +"," + checkY+"]");
+						neighbours.Add(neighbour);
+					}
+				}
+			}
+		}
+		
+		return neighbours.ToArray();
+	}
+
 
 	public Node NodeFromWorldPoint(Vector3 worldPosition) {
 		float percentX = (worldPosition.x + gridWorldSize.x/2) / gridWorldSize.x;
@@ -106,13 +163,13 @@ public class Grid : MonoBehaviour {
 
 		int x = Mathf.RoundToInt((gridSizeX-1) * percentX);
 		int y = Mathf.RoundToInt((gridSizeY-1) * percentY);
-		return grid[x,y];
+		return terrain[x,y];
 	}
 	
 	void OnDrawGizmos() {
 		Gizmos.DrawWireCube(transform.position,new Vector3(gridWorldSize.x,1,gridWorldSize.y));
-		if (grid != null && displayGridGizmos) {
-			foreach (Node n in grid) {
+		if (terrain != null && displayGridGizmos) {
+			foreach (Node n in terrain) {
 				if(n.walkable){
 
 					Gizmos.color = Color.white;

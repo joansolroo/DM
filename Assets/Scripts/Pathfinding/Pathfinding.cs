@@ -49,7 +49,7 @@ public class Pathfinding : MonoBehaviour {
 					break;
 				}
 
-				foreach (Node neighbourNode in grid.GetNeighbours(currentNode.node, includeDiagonals)) {
+				foreach (Node neighbourNode in grid.GetTerrainNeighbours(currentNode.node, includeDiagonals)) {
 					PathfindingNode neighbour = neighbourNode.pathfindingNode;
 					if (!neighbour.node.walkable || closedSet.Contains(neighbour)) {
 						continue;

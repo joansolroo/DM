@@ -33,7 +33,6 @@ public class BoidNode : System.Object{
 	public static int nodeCount
 	{
 		get { return MAX_ID; }
-		//set { MAX_ID = value; }
 	}
 
 	public float hardRadius = 1f;
@@ -76,6 +75,7 @@ public class BoidNode : System.Object{
 		visibilityRadius = _radius * 2f;
 		sight = visibilityRadius;
 		obstacle = true;
+		mass = _radius * _radius * 20;
 	}
 
 	// TERRAIN
@@ -119,7 +119,7 @@ public class BoidNode : System.Object{
 	public Vector3 predictPosition(float deltaTime){
 		return this.position + this.velocity * deltaTime;
 	}
-	public bool WillCollide(BoidNode other, out Vector3 avoidanceSpeed, out Vector3 collisionPoint, int subSamples = 1){
+	public bool WillCollide(BoidNode other, out Vector3 avoidanceSpeed, out Vector3 collisionPoint, int subSamples = 3){
 		if (this != other) {
 
 			aheadVector = velocity.normalized * maxSeeAhead * velocity.magnitude / maxSpeed * Time.deltaTime;
@@ -152,9 +152,10 @@ public class BoidNode : System.Object{
 	{
 		Vector3 otherPosition = other.position;
 		distance = DistanceFromBorder (other);
-		if (other.IsMoving ()) {
+		float currentSpeed = velocity.magnitude;
+		if (other.IsMoving () && currentSpeed > 0) {
 			//  See where the other will be when this one arrives to that point)
-			otherPosition = other.predictPosition (distance / maxSpeed);
+			otherPosition = other.predictPosition (distance / currentSpeed);
 			//  from now on, the target position is that one, so we need to update the distance
 			distance = DistanceFromBorder (otherPosition);
 		}
@@ -175,11 +176,29 @@ public class BoidNode : System.Object{
 		Vector3 desiredVelocity = MaxSpeed(otherPosition - this.position);
 
 		//Arrival
-		if(distance < other.softRadius && distance >= other.hardRadius)
+		if(distance < other.softRadius && distance >= other.hardRadius){
 			desiredVelocity *= ((distance - other.hardRadius) / (other.softRadius-other.hardRadius));
-
+		}
+		if (distance < other.hardRadius) {
+			desiredVelocity = -velocity;
+		}
 		return desiredVelocity;
 	}
+	public Vector3 VelocityTowards(Vector3 otherPosition, float otherRadius, float arrivalRadius){
+		
+		float distance = DistanceFromBorder(otherPosition) - otherRadius;
+		Vector3 desiredVelocity = MaxSpeed(otherPosition - this.position);
+		
+		//Arrival
+		if (distance < arrivalRadius) {
+			desiredVelocity = (desiredVelocity-velocity)*((distance - otherRadius) / (arrivalRadius - otherRadius));
+		}
+		if (distance < otherRadius) {
+			desiredVelocity = -desiredVelocity;
+		}
+		return desiredVelocity;
+	}
+
 
 	public Vector3 VelocityAwayFrom(BoidNode other){
 

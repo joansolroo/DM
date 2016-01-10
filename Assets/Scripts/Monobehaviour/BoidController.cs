@@ -25,9 +25,6 @@ public abstract class BoidController : MonoBehaviour {
 		Gizmos.DrawWireSphere (transform.position, boid.hardRadius);
 		Handles.color = Color.white;
 		Handles.DrawWireDisc(transform.position , Vector3.up, boid.softRadius);
-		//Handles.color = Color.white;
-		//Handles.DrawWireDisc(transform.position , Vector3.up, boid.visibilityRadius);
-
 
 		Gizmos.color = Color.blue;
 		Gizmos.DrawLine (transform.position, transform.position + boid.velocity);

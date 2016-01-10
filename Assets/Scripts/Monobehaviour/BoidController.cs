@@ -2,11 +2,12 @@
 using System.Collections;
 using UnityEditor;
 
-public abstract class Boid : MonoBehaviour {
+public abstract class BoidController : MonoBehaviour {
 
 	public float radius = 0.5f;
 	public bool ShowGizmos = false;
-	protected BoidNode boid;
+
+	public BoidNode boid;
 
 	protected abstract void Initialize ();
 

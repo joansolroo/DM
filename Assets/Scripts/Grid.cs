@@ -75,12 +75,12 @@ public class Grid : MonoBehaviour {
 		Vector3 worldBottomLeft = transform.position - Vector3.right * gridWorldSize.x/2 - Vector3.forward * gridWorldSize.y/2;
 		for (int x = 0; x < gridSizeX; x ++) {
 			for (int y = 0; y < gridSizeY; y ++) {
-				units[x,y] = new HashSet<BoidNode>(new BoidNode.Comparer());
+				units[x,y] = new HashSet<BoidNode>();
 			}
 		}
 	}
 
-	public Node[] GetTerrainNeighbours(Node node, bool radialNeigbourhood = false, float radius = 1) {
+	public Node[] GetTerrainNeighbours(Node node, bool radialNeigbourhood = false, float radius = 1, bool includeSameSlot = true) {
 		List<Node> neighbours = new List<Node>();
 		int radiusInt = -(int)Mathf.Floor (-radius);
 		for (int x = -radiusInt; x <= radiusInt; x++) {
@@ -90,11 +90,8 @@ public class Grid : MonoBehaviour {
 				if((!radialNeigbourhood && new Vector2(x,y).magnitude > radius))
 					continue;
 
-				bool cross = false;
-				if (x == 0 && y == 0) 
+				if (!includeSameSlot && x == 0 && y == 0) 
 					continue;
-				else if (x == 0 || y == 0)
-					cross = true;
 
 				int checkX = node.gridX + x;
 				int checkY = node.gridY + y;
@@ -110,6 +107,7 @@ public class Grid : MonoBehaviour {
 	public void RegisterUnit (BoidNode boid)
 	{
 		Node node = NodeFromWorldPoint(boid.position);
+		boid.node = node;
 		units[node.gridX,node.gridY].Add(boid);
 		//print ("Added Boid  at ["+ node.gridX +"," + node.gridY+"] total:"+units[node.gridX,node.gridY].Count);
 
@@ -117,35 +115,30 @@ public class Grid : MonoBehaviour {
 	public void RemoveUnit (BoidNode boid)
 	{
 		Node node = NodeFromWorldPoint(boid.position);
+		boid.node = null;
 		units[node.gridX,node.gridY].Remove(boid);
+
 		//print ("Removed Boid  at ["+ node.gridX +"," + node.gridY+"] total:"+units[node.gridX,node.gridY].Count);
 	}
 
 	public BoidNode[] GetUnitNeighbours(BoidNode boid, bool radialNeighbourhood = false, float radius = 1) {
 		List<BoidNode> neighbours = new List<BoidNode>();
-		int radiusInt = -(int)Mathf.Floor (-radius);
+		int radiusInt = (int)Mathf.Ceil (radius);
 		for (int x = -radiusInt; x <= radiusInt; x++) {
 			for (int y = -radiusInt; y <= radiusInt; y++) {
-				int xy = Mathf.Abs( Mathf.Abs(x)+ Mathf.Abs(y));
-				
+
 				if((!radialNeighbourhood && new Vector2(x,y).magnitude > radius))
 					continue;
-				
-				bool cross = false;
-				if (x == 0 && y == 0) 
-					continue;
-				else if (x == 0 || y == 0)
-					cross = true;
+
 				Node node = NodeFromWorldPoint(boid.position);
 				int checkX = node.gridX + x;
 				int checkY = node.gridY + y;
-				//print ("Searching Boids at ["+ checkX +"," + checkY+"]");
 				if (checkX >= 0 && checkX < gridSizeX && checkY >= 0 && checkY < gridSizeY) {
 					HashSet<BoidNode> neighboursXY = units[checkX,checkY];
 					foreach(BoidNode neighbour in neighboursXY)
 					{
-						//print ("Close Boid found: at ["+ checkX +"," + checkY+"]");
-						neighbours.Add(neighbour);
+						if(boid.id != neighbour.id)
+							neighbours.Add(neighbour);
 					}
 				}
 			}

@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class Terrain : Boid {
+public class Terrain : BoidController {
 	
 	// Use this for initialization
 	void Start () {

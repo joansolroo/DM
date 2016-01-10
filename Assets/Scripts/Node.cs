@@ -2,19 +2,39 @@
 using System.Collections;
 using System.Collections.Generic;
 
-public class BoidNode{
+[System.Serializable]
+public class BoidNode : System.Object{
 
-	public class Comparer : IEqualityComparer<BoidNode>{
-		public bool Equals(BoidNode n1, BoidNode n2){
-			return n1.Equals (n2);
+	public override bool Equals(System.Object obj)
+	{
+		// If parameter is null return false.
+		if (obj == null)
+		{
+			return false;
 		}
-		public int GetHashCode(BoidNode n){
-			return n.id;
+		
+		// If parameter cannot be cast to Point return false.
+		BoidNode b = obj as BoidNode;
+		if ((System.Object)b == null)
+		{
+			return false;
 		}
+		
+		// Return true if the fields match:
+		return (b.id == this.id);
+	}
+
+	public int GetHashCode(BoidNode n){
+		return n.id;
 	}
 
 	public int id;
 	private static int MAX_ID = 0;
+	public static int nodeCount
+	{
+		get { return MAX_ID; }
+		//set { MAX_ID = value; }
+	}
 
 	public float hardRadius = 1f;
 	public float softRadius = 1.5f;
@@ -23,7 +43,7 @@ public class BoidNode{
 	// Terrain
 	public bool obstacle;
 	public float penalty;
-	public Node other;
+	public Node node;
 
 	// Unit
 	public Vector3 position;
@@ -36,8 +56,8 @@ public class BoidNode{
 	public float mass = 20;
 	public float maxForce = 1;
 
-	public float maxSeeAhead = 2f;
-	public float maxAvoidForce = 5;
+	public float maxSeeAhead = 1f;
+	public float maxAvoidForce = 1;
 
 
 	public BoidNode (){
@@ -61,7 +81,7 @@ public class BoidNode{
 	// TERRAIN
 	// This is a waypoint
 	public BoidNode (Node _node, float _penalty):this(){
-		other = _node;
+		node = _node;
 		position = _node.worldPosition;
 		penalty = _penalty;
 		hardRadius = 0;
@@ -70,7 +90,7 @@ public class BoidNode{
 	}
 	//This is a solid object
 	public BoidNode(Node _node, float _radius, float _penalty, bool _obstacle = false):this(){
-		other = _node;
+		node = _node;
 		position = _node.worldPosition;
 		penalty = _penalty;
 		hardRadius = _radius;
@@ -78,15 +98,19 @@ public class BoidNode{
 		visibilityRadius = _radius * 2f;
 		obstacle = _obstacle;
 	}
-	public float DistanceFromTheBorder(BoidNode other){
+	public float DistanceFromBorder(BoidNode other){
 		float distance = Vector3.Distance (other.position, this.position);
 		return distance - this.hardRadius;
 	}
-	public float DistanceFromTheBorder(Vector3 otherPosition){
+	public float DistanceBetweenBorders(BoidNode other){
+		float distance = Vector3.Distance (other.position, this.position);
+		return distance - this.hardRadius - other.hardRadius;
+	}
+	public float DistanceFromBorder(Vector3 otherPosition){
 		float distance = Vector3.Distance (otherPosition, this.position);
 		return distance - this.hardRadius;
 	}
-	public float DistanceFromTheBorder(Vector3 thisPosition,Vector3 otherPosition){
+	public float DistanceFromBorder(Vector3 thisPosition,Vector3 otherPosition){
 		float distance = Vector3.Distance (otherPosition, thisPosition);
 		return distance - this.hardRadius;
 	}
@@ -95,64 +119,77 @@ public class BoidNode{
 	public Vector3 predictPosition(float deltaTime){
 		return this.position + this.velocity * deltaTime;
 	}
-	public bool WillCollide(BoidNode other, out Vector3 avoidanceForce, out Vector3 collisionPoint){
+	public bool WillCollide(BoidNode other, out Vector3 avoidanceSpeed, out Vector3 collisionPoint, int subSamples = 1){
+		if (this != other) {
 
-		aheadVector = velocity.normalized * maxSeeAhead* velocity.magnitude / maxSpeed;
-		Vector3 aheadT2 = position + aheadVector * Time.deltaTime;
-		Vector3 aheadT1 = position + aheadVector * Time.deltaTime * 0.5f;
-
-		if (other.DistanceFromTheBorder (position) <= this.hardRadius) {
-			collisionPoint = position;
-			avoidanceForce = collisionPoint - other.position;
-			avoidanceForce = -avoidanceForce.normalized * maxAvoidForce;
-
-			return true;
-		} else if (other.DistanceFromTheBorder (aheadT1) <= this.hardRadius) {
-			collisionPoint = aheadT1;
-			avoidanceForce = collisionPoint - other.position;
-			avoidanceForce = -avoidanceForce.normalized * maxAvoidForce;
-
-			return true; 
-		} else if (other.DistanceFromTheBorder (aheadT2) <= this.hardRadius) {
-			collisionPoint = aheadT2;
-			avoidanceForce = collisionPoint - other.position;
-			avoidanceForce = -avoidanceForce.normalized * maxAvoidForce;
-			return true;
-		} else {
-			avoidanceForce = Vector3.zero;
-			collisionPoint = Vector3.zero;
-			return false;
-		}
-
-	}
-	public Vector3 computeInfluence(BoidNode other){
-		
-		Vector3 otherPosition = other.position;
-		float distance = DistanceFromTheBorder (other);
-		if(other.velocity.magnitude>0){
-		//  See where the other will be when this one arrives to that point)
-			otherPosition = other.predictPosition(distance / maxSpeed);
-		//  from now on, the target position is that one, so we need to update the distance
-			distance = DistanceFromTheBorder (otherPosition);
-		}
-		Vector3 desiredVelocity = (otherPosition - this.position).normalized*this.maxSpeed;
-		
-		if (distance < other.visibilityRadius) { 
-			if (other.obstacle || distance < other.hardRadius)
-				// FLEE
-				desiredVelocity = -desiredVelocity;
-			else if(distance < other.softRadius && distance >= other.hardRadius)
-				// ARRIVE
-				desiredVelocity *= ((distance - other.hardRadius) / (other.softRadius-other.hardRadius));
-			else{
-				// JUST MOVE THERE
+			aheadVector = velocity.normalized * maxSeeAhead * velocity.magnitude / maxSpeed * Time.deltaTime;
+			float distance = float.MaxValue;
+			for (int sample = 0; sample <= subSamples; sample++) {
+				Vector3 aheadPosition = position + aheadVector * ((float)sample) / subSamples; 
+				float currentDistance = other.DistanceFromBorder (aheadPosition) - this.hardRadius;
+				if (currentDistance <= 0) {
+					distance = currentDistance;
+					collisionPoint = aheadPosition;
+					avoidanceSpeed = collisionPoint - other.position;
+					avoidanceSpeed = -avoidanceSpeed.normalized * maxAvoidForce;
+					return true;
+				} else if (currentDistance < distance) {
+					distance = currentDistance;
+				}
 			}
-			this.steering = desiredVelocity - this.velocity;
 		}
-		return this.steering;
+		avoidanceSpeed = Vector3.zero;
+		collisionPoint = Vector3.zero;
+		return false;
 	}
 
+	bool IsMoving ()
+	{
+		return this.velocity.magnitude > 0;
+	}
+
+	Vector3 InterceptPosition (BoidNode other, out float distance)
+	{
+		Vector3 otherPosition = other.position;
+		distance = DistanceFromBorder (other);
+		if (other.IsMoving ()) {
+			//  See where the other will be when this one arrives to that point)
+			otherPosition = other.predictPosition (distance / maxSpeed);
+			//  from now on, the target position is that one, so we need to update the distance
+			distance = DistanceFromBorder (otherPosition);
+		}
+		return otherPosition;
+	}
+
+	public Vector3 ForceForExpectedVelocity(Vector3 desiredVelocity){ 
+		return desiredVelocity - this.velocity;
+	}
+	public Vector3 MaxSpeed(Vector3 orientedVector){
+		return orientedVector.normalized * this.maxSpeed;
+	}
+
+	public Vector3 VelocityTowards(BoidNode other){
+		
+		float distance;
+		Vector3 otherPosition = InterceptPosition (other, out distance);
+		Vector3 desiredVelocity = MaxSpeed(otherPosition - this.position);
+
+		//Arrival
+		if(distance < other.softRadius && distance >= other.hardRadius)
+			desiredVelocity *= ((distance - other.hardRadius) / (other.softRadius-other.hardRadius));
+
+		return desiredVelocity;
+	}
+
+	public Vector3 VelocityAwayFrom(BoidNode other){
+
+		float distance;
+		Vector3 otherPosition = InterceptPosition (other, out distance);
+		Vector3 desiredVelocity = MaxSpeed(-(otherPosition - this.position));
+		return desiredVelocity;
+	}
 }
+[System.Serializable]
 public class Node {
 	public bool walkable;
 	public Vector3 worldPosition;
